@@ -1,6 +1,6 @@
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { exec, checking, theme } from "herdr";
+import { exec, checking, theme, layout, run, window, settings, props as blockProps } from "herdr";
 
 // Work items assigned to the signed-in az user, most recently changed first.
 // Types ADO files under Microsoft.HiddenCategory (test plans/suites/cases, shared
@@ -132,8 +132,55 @@ function explain(stderr) {
   return s.trim().split("\n").filter(Boolean).pop() || "az failed";
 }
 
+// The panel's block in the shown layout: the copy of this mod without a `part`. Its id
+// is generated when Herdr first docks it, so it is found by its mod.
+function panelBlock(node) {
+  if (node?.content?.mod === "ado-work-items" && !node.content.props?.part) return node;
+  for (const child of node?.children ?? []) {
+    const found = panelBlock(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+// The show/hide button: a copy with props { part: "toggle" }, placed as its own small
+// block wherever a layout wants it (a tab bar, a title bar). A hidden panel gets no
+// key commands, so the button, which stays shown, does the toggling.
+// With { border: true } it draws a 1px `border` line along its bottom, to continue a bar
+// that has one (Herdr's own tab bar).
+function toggleButton(border) {
+  const t = theme();
+  const panel = panelBlock(layout());
+  const shown = Boolean(panel) && !panel.hidden;
+  const label = !panel ? "No work items panel in this layout" : shown ? "Hide work items" : "Show work items";
+  return h_flex().id("ado-toggle-bar").size_full().items_center().justify_center()
+    .when(border, (el) => el.bg(t.chrome).border_b(1).border_color(t.border))
+    .child(h_flex().id("ado-toggle").size(28).flex_none().items_center().justify_center().rounded(8)
+      .text_color(shown ? t.foreground : t.dim)
+      .when(shown, (el) => el.bg(t.selected))
+      .hover((s) => s.bg(t.hover).text_color(t.foreground))
+      .tooltip(label)
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click(() => { if (panel?.id) run("layout.toggle", { id: panel.id }); })
+      .child(svg(ICON("ado")).size(16).flex_none()));
+}
+
+// On macOS with Herdr's title bar off, the traffic lights sit over the window's top-left
+// corner. When the panel is the root row's first shown block, it is in that corner, so
+// the header starts past the lights (as Herdr's tabs mod does: their x plus 64, in
+// unzoomed px). Elsewhere, and in full screen (no lights), it keeps its 12px.
+function lightsInset() {
+  const w = window(), root = layout();
+  if (w?.platform !== "macos" || w.titlebar !== "none" || w.fullscreen || !root?.traffic_lights) return 12;
+  const first = root.type === "row" ? (root.children ?? []).find((c) => !c.hidden) : null;
+  if (!first || first !== panelBlock(root)) return 12;
+  return Math.max(12, (root.traffic_lights[0] + 64) / (Number(settings()?.zoom) || 1));
+}
+
 export default class AdoWorkItems extends View {
   init(props, cx) {
+    this.part = blockProps()?.part ?? props?.part ?? null;
+    if (this.part === "toggle") return;
     this.items = [];
     this.org = props?.org ?? null;
     this.project = props?.project ?? null;
@@ -261,7 +308,7 @@ export default class AdoWorkItems extends View {
       .hover((s) => s.bg(t.hover))
       .on_click((_e, cx) => { cx.stop_propagation(); this.plus(cx); })
       .child(svg(ICON("plus")).size(14).flex_none().text_color(t.muted));
-    return h_flex().h(36).flex_none().px(12).gap(8).items_center().justify_between()
+    return h_flex().h(36).flex_none().px(12).pl(lightsInset()).gap(8).items_center().justify_between()
       .border_b(1).border_color(t.border)
       .child(h_flex().gap(6).items_center().min_w(0)
         .child(div().text_size(13).font_semibold().text_color(t.foreground).child("Work items"))
@@ -338,6 +385,7 @@ export default class AdoWorkItems extends View {
   }
 
   render(_cx) {
+    if (this.part === "toggle") return toggleButton(Boolean(blockProps()?.border));
     const t = theme();
     let body;
     if (this.error) {

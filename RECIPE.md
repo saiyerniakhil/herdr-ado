@@ -16,7 +16,11 @@ minutes, or when you click ↻.
 The panel is 300px wide, docked on the left (`mod.json` `"place": "left"`), filling the
 full height, on the theme's `chrome` background.
 
-- **Header**, 36px tall, 12px side padding, `border` line under it:
+- **Header**, 36px tall, 12px side padding, `border` line under it. On macOS with the
+  layout's `"titlebar": "none"`, when the panel is the root row's first shown block (the
+  window's top-left corner), the left padding becomes the layout's `traffic_lights` x
+  plus 64, divided by the zoom setting, so the close/minimize/full-screen buttons don't
+  cover the title. Not in full screen, where there are no lights.
   - left: "Work items" (13px, semibold, `foreground`), then the item count in a pill
     (11px, `muted` text on `raised`, 6px side padding, radius 8). The pill appears only
     after the first successful load.
@@ -59,15 +63,19 @@ full height, on the theme's `chrome` background.
     `az login`.", "Missing the azure-devops extension. …", or "No default
     organization/project. Run `az devops configure --defaults …`". Anything else shows
     the last line of az's stderr.
-- **Title bar button (in t3-chrome, not this mod)**: in the Herdr T3 layout's brand bar,
-  before "Show inbox", a 28px ghost button (t3-chrome's `button`, size `sm`) with the
-  Azure DevOps logo (`mods/ado-work-items/ado.svg`, one-color, `currentColor`). It finds
-  the panel's own block in `layout()` (the block whose `content.mod` is
-  `ado-work-items`; its id is generated) and runs `layout.toggle` on it; the panel keeps
-  its width while hidden; it is pressed (`on`) while the panel
-  shows, and its tooltip is "Hide work items" or "Show work items". It is drawn only
-  when the layout has the panel. It lives in `~/.config/herdr-app/mods/t3-chrome/main.js`
-  (`adoBlock`, and the `ado-items` button), so reinstalling Herdr T3 drops it.
+- **Show/hide button**: a second view of this mod, drawn when its block's props are
+  `{ "part": "toggle" }` (read with herdr's `props()`). The layout places it as its own
+  small block, e.g. in the tab bar next to new tab and details. It finds the panel's
+  block in `layout()` (the `ado-work-items` block without a `part`; its id is generated)
+  and runs `layout.toggle` on it. A 28px square, radius 8, centered in its block, with
+  the 16px Azure DevOps logo (`ado.svg`, one color, `currentColor`): `dim`, or
+  `foreground` on `selected` while the panel shows; `hover` background and
+  `foreground` on hover. Its tooltip is "Hide work items" / "Show work items" (or "No
+  work items panel in this layout"). With `"border": true` in its props the block gets the `chrome` background and a
+  1px `border` bottom line, to continue Herdr's own tab bar. It stops left mouse-down so a `window_drag` block
+  doesn't drag the window. It is a separate block because Herdr delivers a mod's key
+  commands only to shown copies, so a hidden panel couldn't show itself again. This
+  copy skips the az loading in `init`.
 - **Minimum width**: the panel's block in the layout has `"min": 220`, so dragging its
   edge stops at 220px. There is no narrow mode.
 
